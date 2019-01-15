@@ -15,6 +15,7 @@
  */
 package okhttp3;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -910,11 +911,11 @@ public final class URLConnectionTest {
 
   @Test public void contentDisagreesWithChunkedHeaderBodyTooShort() throws IOException {
     MockResponse mockResponse = new MockResponse();
-    mockResponse.setChunkedBody("abcde", 5);
+    mockResponse.setChunkedBody("abcdefg", 5);
 
     Buffer truncatedBody = new Buffer();
     Buffer fullBody = mockResponse.getBody();
-    truncatedBody.write(fullBody, fullBody.indexOf((byte) 'e'));
+    truncatedBody.write(fullBody, 4);
     mockResponse.setBody(truncatedBody);
 
     mockResponse.clearHeaders();
@@ -924,9 +925,9 @@ public final class URLConnectionTest {
     server.enqueue(mockResponse);
 
     try {
-      readAscii(urlFactory.open(server.url("/").url()).getInputStream(), 5);
+      readAscii(urlFactory.open(server.url("/").url()).getInputStream(), 7);
       fail();
-    } catch (ProtocolException expected) {
+    } catch (EOFException expected) {
     }
   }
 
@@ -3743,7 +3744,7 @@ public final class URLConnectionTest {
   }
 
   enum TransferKind {
-    CHUNKED() {
+    CHUNKED {
       @Override void setBody(MockResponse response, Buffer content, int chunkSize) {
         response.setChunkedBody(content, chunkSize);
       }
@@ -3752,7 +3753,7 @@ public final class URLConnectionTest {
         connection.setChunkedStreamingMode(5);
       }
     },
-    FIXED_LENGTH() {
+    FIXED_LENGTH {
       @Override void setBody(MockResponse response, Buffer content, int chunkSize) {
         response.setBody(content);
       }
@@ -3761,7 +3762,7 @@ public final class URLConnectionTest {
         connection.setFixedLengthStreamingMode(contentLength);
       }
     },
-    END_OF_STREAM() {
+    END_OF_STREAM {
       @Override void setBody(MockResponse response, Buffer content, int chunkSize) {
         response.setBody(content);
         response.setSocketPolicy(DISCONNECT_AT_END);
